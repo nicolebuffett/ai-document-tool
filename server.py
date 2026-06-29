@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 from openai import OpenAI
 
-app = Flask(**name**)
+app = Flask(__name__)
 CORS(app)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -11,81 +11,75 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ---------------- UPLOAD ----------------
-
+# -------- UPLOAD --------
 @app.route("/upload", methods=["POST"])
 def upload_file():
-file = request.files["file"]
-filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-file.save(filepath)
+    if "file" not in request.files:
+        return jsonify({"message": "No file uploaded"}), 400
 
-```
-return jsonify({"message": "Upload successful"})
-```
+    file = request.files["file"]
+    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(filepath)
 
-# ---------------- LIBRARY ----------------
+    return jsonify({"message": "Upload successful"})
 
+# -------- LIBRARY --------
 @app.route("/library", methods=["GET"])
 def library():
-files = os.listdir(UPLOAD_FOLDER)
-return jsonify({"files": files})
+    files = os.listdir(UPLOAD_FOLDER)
+    return jsonify({"files": files})
 
-# ---------------- DOWNLOAD ----------------
-
+# -------- DOWNLOAD --------
 @app.route("/download/<filename>", methods=["GET"])
 def download(filename):
-return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
-# ---------------- SEARCH ----------------
-
+# -------- SEARCH --------
 @app.route("/search", methods=["POST"])
 def search():
-query = request.json.get("query", "").lower()
-results = []
+    query = request.json.get("query", "").lower()
+    matches = []
 
-```
-for file in os.listdir(UPLOAD_FOLDER):
-    if query in file.lower():
-        results.append(file)
+    for file in os.listdir(UPLOAD_FOLDER):
+        if query in file.lower():
+            matches.append(file)
 
-return jsonify({"result": results})
-```
+    return jsonify({"result": matches})
 
-# ---------------- AI ANALYZE ----------------
-
+# -------- AI ANALYZE --------
 @app.route("/analyze", methods=["POST"])
 def analyze():
-question = request.json.get("question", "")
+    question = request.json.get("question", "")
 
-```
-files_text = ""
-for file in os.listdir(UPLOAD_FOLDER):
-    try:
-        with open(os.path.join(UPLOAD_FOLDER, file), "r", errors="ignore") as f:
-            files_text += f.read()[:2000] + "\\n\\n"
-    except:
-        continue
+    combined_text = ""
 
-prompt = f"""
-Answer the question based on the documents below.
+    for file in os.listdir(UPLOAD_FOLDER):
+        try:
+            with open(os.path.join(UPLOAD_FOLDER, file), "r", errors="ignore") as f:
+                combined_text += f.read()[:2000] + "\n\n"
+        except:
+            continue
 
-Documents:
-{files_text}
+    prompt = f"""
+    You are analyzing uploaded documents.
 
-Question:
-{question}
-"""
+    Documents:
+    {combined_text}
 
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role": "user", "content": prompt}]
-)
+    Question:
+    {question}
 
-return jsonify({"answer": response.choices[0].message.content})
-```
+    Answer clearly and directly.
+    """
 
-# ---------------- RUN ----------------
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
 
-if **name** == "**main**":
-port = int(os.environ.get("PORT", 10000))
-app.run(host="0.0.0.0", port=port)
+    return jsonify({"answer": response.choices[0].message.content})
+
+# -------- RUN --------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)

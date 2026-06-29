@@ -1,7 +1,3 @@
 flask
 flask-cors
 openai
-pymupdf
-pytesseract
-pillow
-boto3

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Document Tool</title>
+<style>
+body { font-family: Arial; margin:0; display:flex; }
+.sidebar { width:220px; background:#1f2a38; color:white; padding:20px; height:100vh; }
+.sidebar button { width:100%; margin-bottom:10px; padding:12px; background:#2e3b4e; border:none; color:white; cursor:pointer; }
+.content { flex:1; padding:20px; background:#f4f4f4; }
+textarea,input { width:100%; padding:10px; margin-bottom:10px; }
+.result-box { background:white; padding:15px; border-radius:5px; white-space:pre-wrap; }
+
+#lockScreen {
+position:fixed; top:0; left:0; width:100%; height:100%;
+background:#1f2a38; color:white;
+display:flex; align-items:center; justify-content:center; flex-direction:column;
+}
+</style>
+</head>
+
+<body>
+
+<div id="lockScreen">
+<h2>Enter Access Code</h2>
+<input type="password" id="accessCode">
+<button onclick="unlock()">Enter</button>
+<p id="errorMsg"></p>
+</div>
+
+<div class="sidebar" id="appUI" style="display:none;">
+<button onclick="showTab('upload')">Upload</button>
+<button onclick="showTab('library')">Library</button>
+<button onclick="showTab('search')">File Search</button>
+<button onclick="showTab('analyze')">AI Analyze</button>
+</div>
+
+<div class="content" id="mainContent" style="display:none;">
+
+<div id="upload">
+<h2>Upload File</h2>
+<input type="file" id="fileInput">
+<button onclick="uploadFile()">Upload</button>
+<div id="uploadStatus"></div>
+</div>
+
+<div id="library" style="display:none;">
+<h2>Library</h2>
+<button onclick="loadLibrary()">Refresh</button>
+<div id="libraryList"></div>
+</div>
+
+<div id="search" style="display:none;">
+<h2>File Search</h2>
+<input type="text" id="searchInput">
+<button onclick="searchFiles()">Search</button>
+<div id="searchResults"></div>
+</div>
+
+<div id="analyze" style="display:none;">
+<h2>AI Analyze</h2>
+<textarea id="aiInput"></textarea>
+<button onclick="runAI()">Analyze</button>
+<div class="result-box" id="aiResult"></div>
+</div>
+
+</div>
+
+<script>
+const BASE_URL = "https://ai-document-tool.onrender.com";
+const ACCESS_CODE = "mine2026";
+
+function unlock(){
+let code = document.getElementById("accessCode").value;
+
+if(code === ACCESS_CODE){
+document.getElementById("lockScreen").style.display = "none";
+document.getElementById("appUI").style.display = "block";
+document.getElementById("mainContent").style.display = "block";
+}else{
+document.getElementById("errorMsg").innerText = "Incorrect code";
+}
+}
+
+function showTab(tab){
+document.getElementById('upload').style.display='none';
+document.getElementById('library').style.display='none';
+document.getElementById('search').style.display='none';
+document.getElementById('analyze').style.display='none';
+document.getElementById(tab).style.display='block';
+}
+
+async function uploadFile(){
+let file=document.getElementById("fileInput").files[0];
+if(!file){return;}
+
+let formData=new FormData();
+formData.append("file",file);
+
+let res=await fetch(`${BASE_URL}/upload`,{method:"POST",body:formData});
+let data=await res.json();
+document.getElementById("uploadStatus").innerText=data.message;
+}
+
+async function loadLibrary(){
+let res=await fetch(`${BASE_URL}/library`);
+let data=await res.json();
+
+let html="";
+
+data.files.forEach(file=>{
+html+=`
+<div style="background:white;padding:10px;margin-bottom:10px;border-radius:5px;">
+<strong>${file}</strong><br>
+<em>Stored securely in cloud</em><br>
+<a href="#" onclick="downloadFile('${file}')">Download</a> |
+<a href="#" onclick="deleteFile('${file}')">Delete</a>
+</div>`;
+});
+
+document.getElementById("libraryList").innerHTML=html;
+}
+
+async function deleteFile(filename){
+if(!confirm("Delete this file?")) return;
+
+await fetch(`${BASE_URL}/delete/${filename}`,{
+method:"DELETE"
+});
+
+loadLibrary();
+}
+
+async function downloadFile(filename){
+let res = await fetch(`${BASE_URL}/download/${filename}`);
+let data = await res.json();
+window.open(data.url, "_blank");
+}
+
+async function searchFiles(){
+let query=document.getElementById("searchInput").value;
+
+let res=await fetch(`${BASE_URL}/search`,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({query})
+});
+
+let data=await res.json();
+
+let html="";
+
+data.result.forEach(file=>{
+html+=`
+<div style="background:white;padding:10px;margin-bottom:10px;border-radius:5px;">
+<strong>${file}</strong><br>
+<a href="#" onclick="downloadFile('${file}')">Download</a>
+</div>`;
+});
+
+document.getElementById("searchResults").innerHTML=html;
+}
+
+async function runAI(){
+let question=document.getElementById("aiInput").value;
+
+let res=await fetch(`${BASE_URL}/analyze`,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({question})
+});
+
+let data=await res.json();
+document.getElementById("aiResult").innerText=data.answer;
+}
+</script>
+
+</body>
+</html>

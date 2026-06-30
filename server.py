@@ -74,7 +74,7 @@ def analyze():
                     for page in pdf.pages:
                         text = page.extract_text()
                         if text:
-                            combined_text += text + "\n\n"
+                            combined_text += text + "\n\n"print(text[:500])
 
             except:
                 continue

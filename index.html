@@ -130,10 +130,8 @@ method:"DELETE"
 loadLibrary();
 }
 
-async function downloadFile(filename){
-let res = await fetch(`${BASE_URL}/download/${filename}`);
-let data = await res.json();
-window.open(data.url, "_blank");
+function downloadFile(filename){
+    window.open(`${BASE_URL}/download/${filename}`, "_blank");
 }
 
 async function searchFiles(){
@@ -153,7 +151,7 @@ data.result.forEach(file=>{
 html+=`
 <div style="background:white;padding:10px;margin-bottom:10px;border-radius:5px;">
 <strong>${file}</strong><br>
-<a href="#" onclick="downloadFile('${file}')">Download</a>
+<a href="javascript:void(0)" onclick="downloadFile('${file}')">Download</a>
 </div>`;
 });
 

@@ -3,27 +3,25 @@ from flask_cors import CORS
 import os
 from openai import OpenAI
 import boto3
+import pdfplumber
 
 app = Flask(__name__)
 CORS(app)
+
+# -------- HOME --------
 @app.route("/")
 def home():
     return send_from_directory(".", "index.html")
+
+# -------- CONFIG --------
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 textract = boto3.client(
     "textract",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
     region_name="us-east-2"
 )
-s3 = boto3.client(
-    "s3",
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION")
-)
-
-BUCKET = os.getenv("S3_BUCKET_NAME")
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -35,8 +33,14 @@ def upload_file():
         return jsonify({"message": "No file uploaded"}), 400
 
     file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"message": "No selected file"}), 400
+
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
+
+    print("Saved to:", filepath)
 
     return jsonify({"message": "Upload successful"})
 
@@ -44,6 +48,7 @@ def upload_file():
 @app.route("/library", methods=["GET"])
 def library():
     files = os.listdir(UPLOAD_FOLDER)
+    print("Library files:", files)
     return jsonify({"files": files})
 
 # -------- DOWNLOAD --------
@@ -101,23 +106,23 @@ def analyze():
 
         except Exception as e:
             print("ERROR:", e)
-            continue
-
-    prompt = f"""
-    You are analyzing engineering test reports.
-
-    Extract test values clearly and directly.
-
-    Documents:
-    {combined_text}
-
-    Question:
-    {question}
-    """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{
+            "role": "user",
+            "content": f"""
+You are analyzing engineering test reports.
+
+Extract test values clearly and directly.
+
+Documents:
+{combined_text}
+
+Question:
+{question}
+"""
+        }]
     )
 
     return jsonify({"answer": response.choices[0].message.content})

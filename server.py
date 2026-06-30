@@ -10,6 +10,12 @@ CORS(app)
 def home():
     return send_from_directory(".", "index.html")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+textract = boto3.client(
+    "textract",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name="us-east-2"
+)
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -58,41 +64,49 @@ def search():
     return jsonify({"result": matches})
 
 # -------- AI ANALYZE --------
-import pdfplumber
-
 @app.route("/analyze", methods=["POST"])
 def analyze():
     question = request.json.get("question", "")
-
     combined_text = ""
 
-    objects = s3.list_objects_v2(Bucket=BUCKET)
+    files = os.listdir(UPLOAD_FOLDER)
 
-    if "Contents" in objects:
-        for obj in objects["Contents"]:
-            try:
-                file_obj = s3.get_object(Bucket=BUCKET, Key=obj["Key"])
-                
-                # Save temp file
-                file_path = f"/tmp/{obj['Key']}"
-                with open(file_path, "wb") as f:
-                    f.write(file_obj["Body"].read())
+    for filename in files:
+        try:
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-                # Extract text from PDF
-                with pdfplumber.open(file_path) as pdf:
-                    for page in pdf.pages:
-                        text = page.extract_text()
-                        if text:
-                            combined_text += text + "\n\n"
-                            print(text[:500])
+            text_found = ""
 
-            except:
-                continue
+            # ---- TRY NORMAL PDF ----
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        text_found += text + "\n"
+
+            # ---- OCR FALLBACK ----
+            if not text_found.strip():
+                print("Using OCR for:", filename)
+
+                with open(file_path, "rb") as doc:
+                    response = textract.detect_document_text(
+                        Document={"Bytes": doc.read()}
+                    )
+
+                for item in response["Blocks"]:
+                    if item["BlockType"] == "LINE":
+                        text_found += item["Text"] + "\n"
+
+            combined_text += text_found + "\n\n"
+
+        except Exception as e:
+            print("ERROR:", e)
+            continue
 
     prompt = f"""
     You are analyzing engineering test reports.
 
-    Extract and answer clearly.
+    Extract test values clearly and directly.
 
     Documents:
     {combined_text}

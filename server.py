@@ -60,14 +60,27 @@ def download(filename):
 @app.route("/search", methods=["POST"])
 def search():
     query = request.json.get("query", "").lower()
-    matches = []
+    results = []
 
-    for file in os.listdir(UPLOAD_FOLDER):
-        if query in file.lower():
-            matches.append(file)
+    for filename in os.listdir(UPLOAD_FOLDER):
+        try:
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-    return jsonify({"result": matches})
+            text_found = ""
 
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        text_found += text.lower()
+
+            if query in text_found:
+                results.append(filename)
+
+        except Exception as e:
+            print("SEARCH ERROR:", e)
+
+    return jsonify({"result": results})
 # -------- AI ANALYZE --------
 @app.route("/analyze", methods=["POST"])
 def analyze():

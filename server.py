@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 from openai import OpenAI
+import boto3
 
 app = Flask(__name__)
 CORS(app)
@@ -9,6 +10,14 @@ CORS(app)
 def home():
     return send_from_directory(".", "index.html")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_REGION")
+)
+
+BUCKET = os.getenv("S3_BUCKET_NAME")
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

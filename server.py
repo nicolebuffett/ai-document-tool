@@ -49,29 +49,46 @@ def search():
     return jsonify({"result": matches})
 
 # -------- AI ANALYZE --------
+import pdfplumber
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     question = request.json.get("question", "")
 
     combined_text = ""
 
-    for file in os.listdir(UPLOAD_FOLDER):
-        try:
-            with open(os.path.join(UPLOAD_FOLDER, file), "r", errors="ignore") as f:
-                combined_text += f.read()[:2000] + "\n\n"
-        except:
-            continue
+    objects = s3.list_objects_v2(Bucket=BUCKET)
+
+    if "Contents" in objects:
+        for obj in objects["Contents"]:
+            try:
+                file_obj = s3.get_object(Bucket=BUCKET, Key=obj["Key"])
+                
+                # Save temp file
+                file_path = f"/tmp/{obj['Key']}"
+                with open(file_path, "wb") as f:
+                    f.write(file_obj["Body"].read())
+
+                # Extract text from PDF
+                with pdfplumber.open(file_path) as pdf:
+                    for page in pdf.pages:
+                        text = page.extract_text()
+                        if text:
+                            combined_text += text + "\n\n"
+
+            except:
+                continue
 
     prompt = f"""
-    You are analyzing uploaded documents.
+    You are analyzing engineering test reports.
+
+    Extract and answer clearly.
 
     Documents:
     {combined_text}
 
     Question:
     {question}
-
-    Answer clearly and directly.
     """
 
     response = client.chat.completions.create(
